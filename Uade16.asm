@@ -27,6 +27,90 @@
 	;9) Possibly DELETE previous file from map,
 	;flush from store and ensure map.
 
+
+; DMB: 3rd Jan 2023: Add SAVE command parsing back in for the Atom
+.DOSAVE
+{
+
+	;Y -> next char in command line
+	JSR BUFTXT
+	BNE DSVRTS
+	LDX #COZERO
+	JSR RDNUM ;Read four byte Load addr.
+	BEQ DSVERR
+	LDX #COZERO + 8
+	JSR RDNUM ;End address +1
+	BEQ DSVERR
+
+	;Get file length before reading
+	;exec address.
+
+	LDX #0
+	SEC
+	PHP
+.DSVLPA
+	PLP
+	LDA COZERO + 8,X
+	SBC COZERO,X
+	STA MIDTX + 8,X
+	PHP
+	INX
+	CPX #3
+	BNE DSVLPA
+	PLP  ;Restore stack
+	LDA COZERO + 8,X
+	SBC COZERO,X
+	BEQ DSVONB ;Not too big ....
+	LDA #SAERRC ;Too big
+	JMP DSVERA
+
+.DSVONB
+	LDX #COZERO + 4
+	JSR RDNUM ;Get exec. address
+	BNE DSVONA
+	LDX #3
+.DSVLPB
+	LDA COZERO,X
+	STA COZERO + 4,X ;Exec = Save addr.
+	DEX
+	BPL DSVLPB
+
+.DSVONA
+	JSR COMEND
+	BNE DSVRTS
+
+	LDX #7
+.DSVLPC
+	LDA COZERO,X
+	STA MIDTX,X
+	DEX
+	BPL DSVLPC
+
+	LDX #0
+.DSVLPD
+	LDA TXTBUF,X
+	STA MIDTX +&B,X ;Store file title
+	INX
+	CMP #CR
+	BNE DSVLPD
+
+	TXA  ;File title length
+	CLC
+	ADC #&C ;Add load/exec/length size
+	ADC #TXHDR ;Add header length
+
+	LDX #CCSAVE ;Save command code
+	STX CCODE
+	JSR REPLYC	;Return code
+.DSVRTS
+	JMP COMRTS ;Finish
+
+.DSVERR
+	LDA #SYNERR
+.DSVERA
+	JMP ERROR
+}
+
 .SAVE; Also enterd here for a CREATE 11/6/84 BC
 {
 	JSR STKUSE;Set m/c no. and call FINDMC
@@ -404,6 +488,50 @@
 	;to pad out data until loop end.
 	;5) Return code reply.
 
+; DMB: 3rd Jan 2023: Add SAVE command parsing back in for the Atom
+.DOLOAD
+{
+
+	JSR BUFTXT ;Read file title
+	BNE DLORTS
+
+	LDA #0
+	STA MIDTX + 4 ;Use load address flag
+
+	LDX #COZERO
+	JSR RDNUM
+	BEQ DLOONA ;Load address not present
+
+	LDX  #3
+.DLOLPA
+	LDA COZERO,X ;Load addr. present, move to TXBUF
+	STA MIDTX,X
+	DEX
+	BPL DLOLPA
+
+	LDA #&FF
+	STA MIDTX + 4 ;Use given address
+.DLOONA
+	JSR COMEND
+	BNE DLORTS
+	LDX #0
+.DLOLPB
+	LDA TXTBUF,X
+	STA MIDTX + 5,X
+	INX
+	CMP #CR
+	BNE DLOLPB
+	TXA ;Get file title length
+	CLC
+	ADC #5 ;Add load addr. etc.
+	ADC #TXHDR
+
+	LDX #CCLOAD ;Command code for load
+	STX CCODE
+	JSR REPLYC ;Send reply
+.DLORTS
+	JMP COMRTS ;Finish !!!
+}
 
 .LOAD
 {
@@ -694,6 +822,46 @@
 	JMP COMRTS
 }
 
+
+	;**********************
+	;* C A T              *
+	;**********************
+
+; DMB: 3rd Jan 2023: Add CAT command parsing back in for the Atom
+.CAT
+{
+
+	LDA #CCCAT
+	PHA
+
+	;Get dir. title and return it
+
+	JSR BUFTXT
+	BNE CATABT
+	JSR COMEND
+	BNE CATABT
+
+	LDX #0
+.CATLPA
+	LDA TXTBUF,X
+	STA MIDTX,X
+	INX
+	CMP #CR
+	BNE CATLPA
+	TXA  ;Get length
+	CLC
+	ADC #TXHDR ;Add TX header length
+	TAX
+
+	PLA  ;Get command code
+	STA CCODE
+	TXA  ;Get length
+	JSR REPLYC ;Send reply
+	JMP COMRTS ;Finish
+.CATABT
+	PLA
+	JMP COMRTS
+}
 
 	;**********************
 	;* C A T  H E A D E R *

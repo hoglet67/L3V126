@@ -1052,6 +1052,55 @@
 	RTS
 }
 
+; DMB: 3rd Jan 2023: Used by SAVE/LOAD command parsing code
+.RDNUM
+{
+	;Read hex number (up to 4 bytes)
+	;into 4-byte p.0 area at X. NOTE
+	;uses 1 extra byte at X.
+	
+	LDA #0
+	STA 0,X
+	STA 1,X
+	STA 2,X
+	STA 3,X
+	STA 4,X
+	JSR SPACES
+.RDHXLP
+	LDA MIDRX,Y
+	CMP #'0'
+	BCC RDHXEX
+	CMP #'9'+1
+	BCC RDHXON
+	SBC #7
+	BCC RDHXEX
+	CMP #&40
+	BCS RDHXEX
+
+.RDHXON
+	ASL A
+	ASL A
+	ASL A
+	ASL A
+	STY 4,X
+	LDY #4
+.RDHXIN
+	ASL A
+	ROL 0,X
+	ROL 1,X
+	ROL 2,X
+	ROL 3,x
+	DEY
+	BNE RDHXIN
+	LDY 4,X
+	INY
+	BNE RDHXLP
+
+.RDHXEX
+	LDA 4,X
+	RTS
+}
+
 .RDTITL
 
 	;Move file title into TXTBUF and
